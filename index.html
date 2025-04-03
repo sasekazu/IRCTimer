@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>IRCTimer</title>
+  <style>
+    @font-face {
+      font-family: 'DSEG7';
+      src: url('./fonts/DSEG7Classic-Bold.ttf') format('truetype'); /* Font "DSEG" by けしかん */
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #66dd66;
+      overflow: hidden;
+    }
+
+    .wrapper {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .retry {
+      position: absolute;
+      top: 5vh;
+      right: 3vw;
+      font-size: 4vw;
+      color: red;
+      font-family: sans-serif;
+      z-index: 10;
+    }
+
+    .timer-section {
+      flex: 3;
+      background-color: black;
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+    }
+
+    .green-line-top {
+      height: 5vh;
+      background-color: #66dd66;
+      width: 100%;
+    }
+
+    .green-line-middle {
+      height: 2vh;
+      background-color: #66dd66;
+      width: 100%;
+    }
+
+    .timer {
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      margin-left: -5vw;
+    }
+
+    .main {
+      font-size: 23vw;
+      font-family: 'DSEG7', monospace;
+      color: orange;
+    }
+
+    .subsec {
+      font-size: 10vw;
+      font-family: 'DSEG7', monospace;
+      color: orange;
+      padding-left: 0.3vw;
+      position: relative;
+      bottom: 0.5vw; 
+    }
+
+    .status-section {
+      flex: 1;
+      background-color: black;
+      color: white;
+      font-size: 8vw;
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .green-line-bottom {
+      height: 2vh;
+      background-color: #66dd66;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="green-line-top"></div>
+      <div class="retry">Retry:0</div>
+      <div class="timer-section">
+      <div class="timer">
+        <span class="main">18:00</span><span class="subsec">.00</span>
+      </div>
+    </div>
+    <div class="green-line-middle"></div>
+    <div class="status-section">
+      競技開始待機
+    </div>
+    <div class="green-line-bottom"></div>
+  </div>
+  <script>
+    // 状態の定義
+    const STATE = {
+      ROBOT_PREPARATION: 'ロボット準備',
+      PREPARATION_TIME_MEASUREMENT: '準備時間計測中',
+      COMPETITION_IN_PROGRESS: '競技中',
+      WAITING_FOR_START: '競技開始待機',
+      MEASUREMENT_PAUSED: '計測停止中',
+      COMPETITION_END: '競技終了'
+    };
+
+    // タイマーの設定
+    let COMPETITION_TIME = 5 * 60; // 5分（秒単位）
+    const PREPARATION_TIME = 2 * 60; // 2分（秒単位）
+
+    // 状態とタイマーの変数
+    let currentState = STATE.WAITING_FOR_START;
+    let remainingTime = COMPETITION_TIME;
+    let preparationTimer = null;
+    let competitionTimer = null;
+    let retryCount = 0;
+    let centiseconds = 0;
+
+    // 状態表示の更新
+    function updateStatusDisplay() {
+      document.querySelector('.status-section').textContent = currentState;
+    }
+
+    // タイマー表示の更新
+    function updateTimerDisplay() {
+      const minutes = Math.floor(remainingTime / 60);
+      const seconds = remainingTime % 60;
+            
+      const mainDisplay = `${minutes.toString()}:${seconds.toString().padStart(2, '0')}`;
+      const subsecDisplay = `.${centiseconds.toString().padStart(2, '0')}`;
+      
+      document.querySelector('.main').textContent = mainDisplay;
+      document.querySelector('.subsec').textContent = subsecDisplay;
+    }
+
+    // リトライカウントの更新
+    function updateRetryCount() {
+      document.querySelector('.retry').textContent = `Retry:${retryCount}`;
+    }
+
+    // 時間計測用の変数
+    let startTime = 0;
+    let totalDuration = 0;
+    let animationFrameId = null;
+
+    // 準備時間タイマーの開始
+    function startPreparationTimer() {
+      // 初期設定
+      totalDuration = PREPARATION_TIME * 1000; // ミリ秒に変換
+      startTime = performance.now();
+      
+      clearInterval(preparationTimer);
+      clearInterval(competitionTimer);
+      cancelAnimationFrame(animationFrameId);
+      
+      // アニメーションフレームを使用して表示を更新
+      function updatePreparationTimer() {
+        const currentTime = performance.now();
+        const elapsedTime = currentTime - startTime;
+        const remainingTimeMs = totalDuration - elapsedTime;
+        
+        if (remainingTimeMs <= 0) {
+          // 準備時間終了、競技中へ自動遷移
+          cancelAnimationFrame(animationFrameId);
+          remainingTime = 0;
+          centiseconds = 0;
+          updateTimerDisplay();
+          transitionToCompetition();
+          return;
+        }
+        
+        // 残り時間を秒とセンチ秒に変換
+        remainingTime = Math.floor(remainingTimeMs / 1000);
+        centiseconds = Math.floor((remainingTimeMs % 1000) / 10);
+        
+        updateTimerDisplay();
+        animationFrameId = requestAnimationFrame(updatePreparationTimer);
+      }
+      
+      // 最初の更新を開始
+      animationFrameId = requestAnimationFrame(updatePreparationTimer);
+    }
+
+    // 競技タイマーの開始
+    function startCompetitionTimer() {
+      // 初期設定
+      totalDuration = COMPETITION_TIME * 1000; // ミリ秒に変換
+      startTime = performance.now();
+      
+      clearInterval(preparationTimer);
+      clearInterval(competitionTimer);
+      cancelAnimationFrame(animationFrameId);
+      
+      // アニメーションフレームを使用して表示を更新
+      function updateCompetitionTimer() {
+        const currentTime = performance.now();
+        const elapsedTime = currentTime - startTime;
+        const remainingTimeMs = totalDuration - elapsedTime;
+        
+        if (remainingTimeMs <= 0) {
+          // 競技時間終了
+          cancelAnimationFrame(animationFrameId);
+          remainingTime = 0;
+          centiseconds = 0;
+          updateTimerDisplay();
+          currentState = STATE.COMPETITION_END;
+          updateStatusDisplay();
+          return;
+        }
+        
+        // 残り時間を秒とセンチ秒に変換
+        remainingTime = Math.floor(remainingTimeMs / 1000);
+        centiseconds = Math.floor((remainingTimeMs % 1000) / 10);
+        
+        updateTimerDisplay();
+        animationFrameId = requestAnimationFrame(updateCompetitionTimer);
+      }
+      
+      // 最初の更新を開始
+      animationFrameId = requestAnimationFrame(updateCompetitionTimer);
+    }
+
+    // 競技中への遷移
+    function transitionToCompetition() {
+      currentState = STATE.COMPETITION_IN_PROGRESS;
+      updateStatusDisplay();
+      startCompetitionTimer();
+    }
+
+    // 一時停止時の経過時間を保存する変数
+    let pausedElapsedTime = 0;
+
+    // タイマーの一時停止/再開
+    function togglePause() {
+      if (currentState === STATE.COMPETITION_IN_PROGRESS) {
+        // 競技中から計測停止中へ
+        cancelAnimationFrame(animationFrameId);
+        
+        // 一時停止時点での経過時間を記録
+        const currentTime = performance.now();
+        pausedElapsedTime = currentTime - startTime;
+        
+        currentState = STATE.MEASUREMENT_PAUSED;
+        updateStatusDisplay();
+        // 競技中から計測停止中に遷移した際にリトライカウントを増加
+        incrementRetryCount();
+      } else if (currentState === STATE.MEASUREMENT_PAUSED) {
+        // 計測停止中から競技中へ
+        currentState = STATE.COMPETITION_IN_PROGRESS;
+        updateStatusDisplay();
+        
+        // 新しい開始時間を設定（現在時刻から一時停止していた時間を引く）
+        startTime = performance.now() - pausedElapsedTime;
+        
+        // アニメーションフレームを使用して表示を更新
+        function updatePausedTimer() {
+          const currentTime = performance.now();
+          const elapsedTime = currentTime - startTime;
+          const remainingTimeMs = totalDuration - elapsedTime;
+          
+          if (remainingTimeMs <= 0) {
+            // 競技時間終了
+            cancelAnimationFrame(animationFrameId);
+            remainingTime = 0;
+            centiseconds = 0;
+            updateTimerDisplay();
+            currentState = STATE.COMPETITION_END;
+            updateStatusDisplay();
+            return;
+          }
+          
+          // 残り時間を秒とセンチ秒に変換
+          remainingTime = Math.floor(remainingTimeMs / 1000);
+          centiseconds = Math.floor((remainingTimeMs % 1000) / 10);
+          
+          updateTimerDisplay();
+          animationFrameId = requestAnimationFrame(updatePausedTimer);
+        }
+        
+        // 最初の更新を開始
+        animationFrameId = requestAnimationFrame(updatePausedTimer);
+      }
+    }
+
+    // 初期化処理
+    function initialize(mode, showAlert = true) {
+      clearInterval(preparationTimer);
+      clearInterval(competitionTimer);
+      cancelAnimationFrame(animationFrameId);
+      
+      if (mode === 'P') {
+        // ロボット準備モード
+        // Pキーで初期化した際に確認メッセージを表示（初回ロード時は表示しない）
+        if (showAlert) {
+          if (confirm('ロボット準備モードに初期化しますか？')) {
+            currentState = STATE.ROBOT_PREPARATION;
+            remainingTime = PREPARATION_TIME;
+            centiseconds = 0;
+            updateStatusDisplay();
+            updateTimerDisplay();
+          }
+          // キャンセルされた場合は何もせず現在の状態を維持
+          return;
+        }
+        // 初回ロード時は確認なしで初期化
+        currentState = STATE.ROBOT_PREPARATION;
+        remainingTime = PREPARATION_TIME;
+      } else if (mode === 'I') {
+        // 競技開始待機モード
+        // Iキーで初期化した際に確認メッセージを表示（初回ロード時は表示しない）
+        if (showAlert) {
+          if (confirm('競技開始待機モードに初期化しますか？')) {
+            currentState = STATE.WAITING_FOR_START;
+            remainingTime = COMPETITION_TIME;
+            centiseconds = 0;
+            updateStatusDisplay();
+            updateTimerDisplay();
+          }
+          // キャンセルされた場合は何もせず現在の状態を維持
+          return;
+        }
+        // 初回ロード時は確認なしで初期化
+        currentState = STATE.WAITING_FOR_START;
+        remainingTime = COMPETITION_TIME;
+      }
+      
+      centiseconds = 0;
+      updateStatusDisplay();
+      updateTimerDisplay();
+    }
+
+    // トリガー操作の処理
+    function handleTrigger() {
+      switch (currentState) {
+        case STATE.ROBOT_PREPARATION:
+          // ロボット準備から準備時間計測中へ
+          currentState = STATE.PREPARATION_TIME_MEASUREMENT;
+          updateStatusDisplay();
+          startPreparationTimer();
+          break;
+          
+        case STATE.PREPARATION_TIME_MEASUREMENT:
+          // 準備時間計測中から競技開始待機へ
+          clearInterval(preparationTimer);
+          cancelAnimationFrame(animationFrameId);
+          currentState = STATE.WAITING_FOR_START;
+          remainingTime = COMPETITION_TIME;
+          centiseconds = 0;
+          updateStatusDisplay();
+          updateTimerDisplay();
+          break;
+          
+        case STATE.WAITING_FOR_START:
+          // 競技開始待機から競技中へ
+          transitionToCompetition();
+          break;
+          
+        case STATE.COMPETITION_IN_PROGRESS:
+        case STATE.MEASUREMENT_PAUSED:
+          // 競技中と計測停止中の切り替え
+          togglePause();
+          break;
+          
+        case STATE.COMPETITION_END:
+          // 競技終了状態ではトリガーは無効
+          break;
+      }
+    }
+
+    // リトライカウントの増加
+    function incrementRetryCount() {
+      retryCount++;
+      updateRetryCount();
+    }
+    
+    // リトライカウントの減少
+    function decrementRetryCount() {
+      if (retryCount > 0) { // 0未満にならないようにチェック
+        retryCount--;
+        updateRetryCount();
+      }
+    }
+
+    // 競技時間の変更
+    function changeCompetitionTime() {
+      const newTimeStr = prompt('新しい競技時間を秒単位で入力してください:', COMPETITION_TIME);
+      if (newTimeStr === null) return; // キャンセルされた場合
+      
+      const newTime = parseInt(newTimeStr);
+      if (isNaN(newTime) || newTime <= 0) {
+        alert('有効な秒数を入力してください');
+        return;
+      }
+      
+      COMPETITION_TIME = newTime;
+      
+      // 競技開始待機状態の場合は、表示も更新する
+      if (currentState === STATE.WAITING_FOR_START) {
+        remainingTime = COMPETITION_TIME;
+        centiseconds = 0;
+        updateTimerDisplay();
+      } else {
+        alert('次の競技開始待機時に新しい時間が適用されます');
+      }
+    }
+
+    // キーボードイベントの設定
+    document.addEventListener('keydown', (event) => {
+      switch (event.key) {
+        case ' ':  // スペースキー
+        case 'Enter':
+          handleTrigger();
+          break;
+          
+        case 'p':
+        case 'P':
+          initialize('P');
+          break;
+          
+        case 'i':
+        case 'I':
+          initialize('I');
+          break;
+          
+        case 'l':
+        case 'L':
+          changeCompetitionTime();
+          break;
+          
+        case '+':
+          incrementRetryCount();
+          break;
+          
+        case '-':
+          decrementRetryCount();
+          break;
+      }
+    });
+
+    // 初期化（初回ロード時はアラートを表示しない）
+    initialize('I', false);
+  </script>
+</body>
+</html>

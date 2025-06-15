@@ -129,7 +129,7 @@
     const PREPARATION_TIME = 2 * 60; // 2分（秒単位）
 
     // 状態とタイマーの変数
-    let currentState = STATE.WAITING_FOR_START;
+    let currentState = STATE.ROBOT_PREPARATION;
     let remainingTime = COMPETITION_TIME;
     let preparationTimer = null;
     let competitionTimer = null;
@@ -467,7 +467,7 @@
     });
 
     // 初期化（初回ロード時はアラートを表示しない）
-    initialize('I', false);
+    initialize('P', false);
   </script>
 </body>
 </html>

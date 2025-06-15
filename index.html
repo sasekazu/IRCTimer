@@ -262,12 +262,12 @@
         
         currentState = STATE.MEASUREMENT_PAUSED;
         updateStatusDisplay();
-        // 競技中から計測停止中に遷移した際にリトライカウントを増加
-        incrementRetryCount();
       } else if (currentState === STATE.MEASUREMENT_PAUSED) {
         // 計測停止中から競技中へ
         currentState = STATE.COMPETITION_IN_PROGRESS;
         updateStatusDisplay();
+        // 計測停止中から競技中に遷移した際にリトライカウントを増加
+        incrementRetryCount();
         
         // 新しい開始時間を設定（現在時刻から一時停止していた時間を引く）
         startTime = performance.now() - pausedElapsedTime;

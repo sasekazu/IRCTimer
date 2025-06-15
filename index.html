@@ -386,15 +386,21 @@
 
     // リトライカウントの増加
     function incrementRetryCount() {
-      retryCount++;
-      updateRetryCount();
+      if(currentState == STATE.COMPETITION_IN_PROGRESS
+        || currentState == STATE.MEASUREMENT_PAUSED) {
+            retryCount++;
+            updateRetryCount();
+        }
     }
     
     // リトライカウントの減少
     function decrementRetryCount() {
-      if (retryCount > 0) { // 0未満にならないようにチェック
-        retryCount--;
-        updateRetryCount();
+      if(currentState == STATE.COMPETITION_IN_PROGRESS
+        || currentState == STATE.MEASUREMENT_PAUSED) {
+        if (retryCount > 0) { // 0未満にならないようにチェック
+            retryCount--;
+            updateRetryCount();
+        }
       }
     }
 

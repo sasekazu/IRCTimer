@@ -316,6 +316,7 @@
             currentState = STATE.ROBOT_PREPARATION;
             remainingTime = PREPARATION_TIME;
             centiseconds = 0;
+            resetRetryCount();
             updateStatusDisplay();
             updateTimerDisplay();
           }
@@ -333,6 +334,7 @@
             currentState = STATE.WAITING_FOR_START;
             remainingTime = COMPETITION_TIME;
             centiseconds = 0;
+            resetRetryCount();
             updateStatusDisplay();
             updateTimerDisplay();
           }
@@ -400,6 +402,13 @@
         updateRetryCount();
       }
     }
+
+    // リトライカウントのリセット
+    function resetRetryCount() {
+        retryCount = 0;
+        updateRetryCount();
+    }
+
 
     // 競技時間の変更
     function changeCompetitionTime() {

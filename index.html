@@ -129,7 +129,7 @@
     const PREPARATION_TIME = 2 * 60; // 2分（秒単位）
 
     // 状態とタイマーの変数
-    let currentState = STATE.WAITING_FOR_START;
+    let currentState = STATE.ROBOT_PREPARATION;
     let remainingTime = COMPETITION_TIME;
     let preparationTimer = null;
     let competitionTimer = null;
@@ -145,7 +145,7 @@
     function updateTimerDisplay() {
       const minutes = Math.floor(remainingTime / 60);
       const seconds = remainingTime % 60;
-            
+
       const mainDisplay = `${minutes.toString()}:${seconds.toString().padStart(2, '0')}`;
       const subsecDisplay = `.${centiseconds.toString().padStart(2, '0')}`;
       
@@ -262,12 +262,12 @@
         
         currentState = STATE.MEASUREMENT_PAUSED;
         updateStatusDisplay();
-        // 競技中から計測停止中に遷移した際にリトライカウントを増加
-        incrementRetryCount();
       } else if (currentState === STATE.MEASUREMENT_PAUSED) {
         // 計測停止中から競技中へ
         currentState = STATE.COMPETITION_IN_PROGRESS;
         updateStatusDisplay();
+        // 計測停止中から競技中に遷移した際にリトライカウントを増加
+        incrementRetryCount();
         
         // 新しい開始時間を設定（現在時刻から一時停止していた時間を引く）
         startTime = performance.now() - pausedElapsedTime;
@@ -304,49 +304,46 @@
 
     // 初期化処理
     function initialize(mode, showAlert = true) {
-      clearInterval(preparationTimer);
-      clearInterval(competitionTimer);
-      cancelAnimationFrame(animationFrameId);
       
       if (mode === 'P') {
         // ロボット準備モード
         // Pキーで初期化した際に確認メッセージを表示（初回ロード時は表示しない）
         if (showAlert) {
-          if (confirm('ロボット準備モードに初期化しますか？')) {
-            currentState = STATE.ROBOT_PREPARATION;
-            remainingTime = PREPARATION_TIME;
-            centiseconds = 0;
-            updateStatusDisplay();
-            updateTimerDisplay();
+          if (!confirm('ロボット準備モードに初期化しますか？')) {
+            // キャンセルされた場合は何もせず現在の状態を維持
+            return;
           }
-          // キャンセルされた場合は何もせず現在の状態を維持
-          return;
         }
-        // 初回ロード時は確認なしで初期化
+        // 初回ロード時は確認なしで初期化、または確認後の初期化
         currentState = STATE.ROBOT_PREPARATION;
         remainingTime = PREPARATION_TIME;
+        centiseconds = 0;
+        clearInterval(preparationTimer);
+        clearInterval(competitionTimer);
+        cancelAnimationFrame(animationFrameId);
+        resetRetryCount();
+        updateStatusDisplay();
+        updateTimerDisplay();
       } else if (mode === 'I') {
         // 競技開始待機モード
         // Iキーで初期化した際に確認メッセージを表示（初回ロード時は表示しない）
         if (showAlert) {
-          if (confirm('競技開始待機モードに初期化しますか？')) {
-            currentState = STATE.WAITING_FOR_START;
-            remainingTime = COMPETITION_TIME;
-            centiseconds = 0;
-            updateStatusDisplay();
-            updateTimerDisplay();
+          if (!confirm('競技開始待機モードに初期化しますか？')) {
+            // キャンセルされた場合は何もせず現在の状態を維持
+            return;
           }
-          // キャンセルされた場合は何もせず現在の状態を維持
-          return;
         }
-        // 初回ロード時は確認なしで初期化
+        // 初回ロード時は確認なしで初期化、または確認後の初期化
         currentState = STATE.WAITING_FOR_START;
         remainingTime = COMPETITION_TIME;
+        centiseconds = 0;
+        clearInterval(preparationTimer);
+        clearInterval(competitionTimer);
+        cancelAnimationFrame(animationFrameId);
+        resetRetryCount();
+        updateStatusDisplay();
+        updateTimerDisplay();
       }
-      
-      centiseconds = 0;
-      updateStatusDisplay();
-      updateTimerDisplay();
     }
 
     // トリガー操作の処理
@@ -389,17 +386,30 @@
 
     // リトライカウントの増加
     function incrementRetryCount() {
-      retryCount++;
-      updateRetryCount();
+      if(currentState == STATE.COMPETITION_IN_PROGRESS
+        || currentState == STATE.MEASUREMENT_PAUSED) {
+            retryCount++;
+            updateRetryCount();
+        }
     }
     
     // リトライカウントの減少
     function decrementRetryCount() {
-      if (retryCount > 0) { // 0未満にならないようにチェック
-        retryCount--;
-        updateRetryCount();
+      if(currentState == STATE.COMPETITION_IN_PROGRESS
+        || currentState == STATE.MEASUREMENT_PAUSED) {
+        if (retryCount > 0) { // 0未満にならないようにチェック
+            retryCount--;
+            updateRetryCount();
+        }
       }
     }
+
+    // リトライカウントのリセット
+    function resetRetryCount() {
+        retryCount = 0;
+        updateRetryCount();
+    }
+
 
     // 競技時間の変更
     function changeCompetitionTime() {
@@ -458,7 +468,7 @@
     });
 
     // 初期化（初回ロード時はアラートを表示しない）
-    initialize('I', false);
+    initialize('P', false);
   </script>
 </body>
 </html>
